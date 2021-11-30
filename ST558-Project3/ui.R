@@ -9,6 +9,16 @@
 setwd("C:/Users/14154/Documents/School/NCSU/STAT 558/R project 3/ST558-Project-3")
 library(shiny)
 library(shinydashboard)
+library(magrittr)
+library(dplyr)
+library(lubridate)
+library(jsonlite)
+library(tidyverse)
+library(countrycode)
+library(knitr)
+library(reshape2)
+library(data.table)
+library(DT)
 
 referrence_table <- fromJSON(
   "https://api.chess.com/pub/leaderboards"
@@ -76,30 +86,34 @@ all_stats_summary_rating_user <- all_stats_summary_rating %>% filter(username ==
 # INSTRUCTIONS:
 
 # An About page. The page should
-## ??? Describe the purpose of the app
-## ??? Briefly discuss the data and its source - providing a link to more information about the data
-## ??? Tell the user the purpose of each tab (page) of the app
-## ??? Include a picture related to the data (for instance, if the data was about the world wildlife
+##  Describe the purpose of the app
+##  Briefly discuss the data and its source - providing a link to more information about the data
+##  Tell the user the purpose of each tab (page) of the app
+##  Include a picture related to the data (for instance, if the data was about the world wildlife
 ##                                         fund, you might include a picture of their logo)
 
 # A Data Exploration page. This should allow the user to
-## ??? Create numerical and graphical summaries
-## ??? Change the type of plot and type of summary reported
-## ??? Change the variables and filter the rows to change the data in the plots/summaries
+##  Create numerical and graphical summaries
+##  Change the type of plot and type of summary reported
+##  Change the variables and filter the rows to change the data in the plots/summaries
 
 
 # A Modeling page. You will fit three supervised learning models. Depending on your response you'll fit a multiple linear regression or generalized linear regression model, regression or classification tree, and a random forest model. This page should have three tabs to it.
 
-## ??? Modeling Info tab: You should explain these three modeling approaches, the benefits of each, and the drawbacks of each. You should include some type of math type in the explanation (you'll need to include mathJax).
+##  Modeling Info tab: You should explain these three modeling approaches, the benefits of each, and the drawbacks of each. You should include some type of math type in the explanation (you'll need to include mathJax).
 
-## ??? Model Fitting tab:
+##  Model Fitting tab:
 ###  You'll split your data into a training and test set. Give the user the ability to choose the proportion of data used in each.
 ###  The user should have functionality for choosing model settings for each model. For all models, they should be able to select the variables used. Cross validation should be used for selecting models where appropriate.
 ###  When the user is ready they should be able to press a button and fit all three models on the training data.
 ###  Fit statistics (such as RMSE) on the training data should be reported for each model along with appropriate summaries about the model (for instance, summary() run on your lm() or glm() fit, a plot showing the variable importance from the random forest model, etc.).
 ###  The models should be compared on the test set and appropriate fit statistics reported.
-## ??? Prediction tab: You should give the user a way to use one of the models for prediction. That is, they should be able to select the values of the predictors and obtain a prediction for the response.
+##  Prediction tab: You should give the user a way to use one of the models for prediction. That is, they should be able to select the values of the predictors and obtain a prediction for the response.
 
+# A Data page. The user should be able to
+## ∗ Scroll through the data set
+## ∗ Subset this data set (rows and columns)
+## ∗ Save the (possibly subsetted) data as a file (.csv is fine but whatever you’d like)
 
 
 shinyUI(fluidPage(navbarPage(title = "Tabs",
@@ -177,6 +191,16 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
            )
            )),
   tabPanel("Modeling", "contents"),
-  tabPanel("Data", "contents")
-  ))
+  tabPanel("Data", fluid = TRUE,
+           sidebarLayout(
+             sidebarPanel(
+               checkboxGroupInput("Columns","Columns",c(names(all_stats)),selected = c(names(all_stats))),
+               downloadButton("downloadData", "Download entire Table as csv")
+             ),
+             mainPanel(
+               h3("'Raw' Data Set"),
+               dataTableOutput("Rawdata")
+             ))
+           )
+           ))
 )

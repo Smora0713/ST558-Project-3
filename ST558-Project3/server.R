@@ -17,6 +17,7 @@ library(countrycode)
 library(knitr)
 library(reshape2)
 library(data.table)
+library(DT)
 
 #Reading in the data that we will need
 #Utilizing the Chess.com API to pull in the top fifty players for each type of chess rules. We will begin with "Daily" (easiet to understand and most data on it) and we will usitlize that as the parameter. This first API will be utilized to pull more API's. It'll be a master table of sorts.
@@ -65,7 +66,7 @@ country_codes <- rbind(country_codes,new_countries)
 all_stats$country <- substr(all_stats$country,nchar(all_stats$country)-1,nchar(all_stats$country))
 
 
-all_stats <- left_join(all_stats,country_codes,by = c("country" = "country_code")) %>% mutate(minutes_between_moves = round((record.time_per_move/60)),2)
+all_stats <- left_join(all_stats,country_codes,by = c("country" = "country_code")) %>% mutate(minutes_between_moves = round((record.time_per_move/60),2))
 
 set.seed(123)
 world <- map_data("world")
@@ -165,4 +166,22 @@ shinyServer(function(input, output,session) {
     output$stats <- renderDataTable({
       stats <- summary_tables %>% dplyr::select(values,input$stat) %>% filter(values == c(input$Values))
     })
+    datasetInput <- reactive(all_stats[,input$Columns])
+
+
+    output$Rawdata <- renderDataTable({
+      datasetInput() %>% 
+        datatable(extensions = 'Buttons',
+                  options = list(
+                    dom = "lfrtipB",
+                    buttons = c("copy", "csv", "pdf")),
+                  filter = list(position = 'top'),
+                  rownames = FALSE)
+      })
+
+
+    output$downloadData <- downloadHandler(
+      filename = function(){paste("Chess_Top_Data", ".csv", sep = "")},
+      content = function(file){write.csv(datasetInput(), file)}
+    )
 })

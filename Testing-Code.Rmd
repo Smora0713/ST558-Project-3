@@ -1,0 +1,212 @@
+---
+title: "Testing Code"
+author: "Sergio Mora"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(lubridate)
+library(jsonlite)
+library(tidyverse)
+library(countrycode)
+library(knitr)
+library(reshape2)
+library(data.table)
+```
+
+The purpose of this RMD is to test out code prior to placing it in the shiny ui or server. This will facilitate the debugging process. This code is meant to be read as scrap paper and not as a version one of the shiny app. For that reason this code RMD file does not have to follow the Shiny app layout or structure. It also might not work entirely.
+
+# Reading in the data
+```{r}
+#Utilizing the Chess.com API to pull in the top fifty players for each type of chess rules. We will begin with "Daily" (easiet to understand and most data on it) and we will usitlize that as the parameter. This first API will be utilized to pull more API's. It'll be a master table of sorts.
+referrence_table <- fromJSON(
+    "https://api.chess.com/pub/leaderboards"
+    )
+
+top50 <- referrence_table$daily
+
+stats_apis_list <- as.list((paste0(top50$'@id',"/stats")))
+
+list_of_stats <- lapply(stats_apis_list,fromJSON)
+```
+
+```{r, message=FALSE, warning = FALSE}
+col.names <- colnames(data.frame(list_of_stats[[1]]$chess_daily)) # list of the column names since the empty dataframe wont have this by default
+
+col.num <- ncol(data.frame(list_of_stats[[1]]$chess_daily)) # number of columns needed for our empty data frame
+
+row.num <- nrow(top50) # number of rows, this might be repetative since we know it should always be 50 but just in case something goes wrong
+
+all_stats <- data.frame(matrix(ncol = col.num, nrow = row.num)) # list of column list
+
+all_fide <- data.frame(matrix(ncol = 1, nrow = row.num)) # list of column list
+
+for (i in 1:row.num){
+#all_stats[i,] <- merge(data.frame(list_of_stats[[i]]$chess_daily),data.frame(list_of_stats[[i]]$fide))
+all_stats[i,] <- data.frame(list_of_stats[[i]]$chess_daily)
+#all_fide[i,] <- data.frame(list_of_stats[[i]]$fide,is.na = TRUE)
+#all_stats[i,] <- data.frame(list_of_stats[[i]]$fide)
+}
+
+
+colnames(all_stats) <- col.names
+
+all_stats <- cbind(top50[c("player_id","username","rank","country","title","status")],all_stats) # Binding the data based on the position.
+
+country_codes <- read.csv("https://gist.githubusercontent.com/tadast/8827699/raw/f5cac3d42d16b78348610fc4ec301e9234f82821/countries_codes_and_coordinates.csv")
+
+country_codes <- country_codes %>% distinct(Alpha.2.code, .keep_all = TRUE) %>% mutate(country_code = gsub(" ","",Alpha.2.code)) %>% dplyr::select(country_code,Country,Latitude..average.,Longitude..average.)
+
+new_countries <- data.frame(c("XE","XS"),c("Europe","Serbia"),c(54.5260,44.0000),c(15.2551,21.0000))
+names(new_countries) <- names(country_codes)
+
+country_codes <- rbind(country_codes,new_countries)
+
+
+all_stats$country <- substr(all_stats$country,nchar(all_stats$country)-1,nchar(all_stats$country))
+
+
+
+all_stats <- left_join(all_stats,country_codes,by = c("country" = "country_code")) %>% mutate(minutes_between_moves = round((record.time_per_move/60),2))
+head(all_stats)
+```
+
+Now that we have our data we can now start creating graphs and charts to explain our analysis.
+
+# Data Exploration
+Now that we have our data pulled and organized we want to start building some EDA's.
+
+## World Map EDA
+```{r, message=FALSE}
+set.seed(123)
+all_stats <-all_stats %>% mutate(Latitude..average.jit = jitter(all_stats$Latitude..average., amount = 3),Longitude..average.jit = jitter(all_stats$Longitude..average., amount = 3))
+
+world <- map_data("world")
+ggplot() +
+  geom_map(
+    data = world, map = world,
+    aes(long, lat, map_id = region),
+    color = "white", fill = "lightgray", size = 0.1
+  ) +  geom_point(
+    data = all_stats,
+    aes(Longitude..average.jit, Latitude..average.jit),
+    alpha = 0.7,) +
+  geom_point(position=position_jitter(width=.1, height=.1))
+
+
+
+country_lists <- data.frame(table(all_stats$Country))
+colnames(country_lists) <- c("Country/Region","# of ranked players")
+country_lists %>% kable()
+```
+
+From the first EDA we see where most of our ranked player are from. Very often we see that players are from first world countries in the West. This isn't **always** the case but it is often enough.
+
+## Bar Plot
+```{r}
+#WLD data along with rank
+all_stats_summary_WLD <- all_stats %>% dplyr::select(username,record.win,record.loss,record.draw,rank)
+
+all_stats_summary_WLD <- gather(all_stats_summary_WLD,key = "record", value = "WLD",record.win,record.loss,record.draw) %>% arrange(username)
+
+user <- "ACGTU"
+
+all_stats_summary_WLD_user <- all_stats_summary_WLD %>% filter(username == user)
+
+ggplot(all_stats_summary_WLD_user,aes(x = record,y=WLD)) + geom_bar(stat="identity") + ggtitle(paste0("Bar plot for user ",all_stats_summary_WLD_user$username," whose rank is: ",all_stats_summary_WLD_user$rank)) + xlab("") + ylab("")
+
+all_stats_summary_WLD_user
+
+#Last rating VS. Best Rating
+all_stats_summary_rating <- all_stats %>% dplyr::select(username,last.rating,best.rating,rank)
+
+all_stats_summary_rating <- gather(all_stats_summary_rating,key = "record", value = "Rating",last.rating,best.rating) %>% arrange(username)
+
+all_stats_summary_rating_user <- all_stats_summary_rating %>% filter(username == user)
+
+ggplot(all_stats_summary_rating_user,aes(x = record,y=Rating)) + geom_bar(stat="identity") + ggtitle(paste0("Bar plot for user ",all_stats_summary_rating_user$username," whose rank is: ",all_stats_summary_rating_user$rank)) + xlab("") + ylab("")
+
+```
+
+This bar plot will be utilized to measure the draw, loss, win records for each player. We will also measure the players last rating vs. their best rating. It's often that their best rating and their last rating is one and the same due to a sampling bias. Players who rank at the top 50 normally do so when they are at their peak.
+
+
+## Histogram
+```{r, message=FALSE, warning = FALSE}
+# Histogram of the last rating
+ggplot(all_stats, aes(x=last.rating)) + 
+  geom_histogram(alpha = 0.75) + geom_vline(xintercept = 2500, linetype = "dashed", color = "red") + 
+  geom_text(aes(x=2500, label="\nGM rating", y=7), colour="Red", text=element_text(size=11)) + 
+  geom_vline(xintercept = 2400, linetype = "dashed", color = "red") + 
+  geom_text(aes(x=2400, label="\nIM rating", y=7), colour="blue", text=element_text(size=11)) +
+  ylab("") +
+  xlab("")
+
+all_stats %>% select(player_id,last.rating,rank)
+# Histogram of the best rating
+ggplot(all_stats, aes(x=best.rating)) + 
+  geom_histogram(alpha = 0.75) + geom_vline(xintercept = 2500, linetype = "dashed", color = "red") + 
+  geom_text(aes(x=2500, label="\nGM rating", y=7), colour="Red", text=element_text(size=11)) + 
+  geom_vline(xintercept = 2400, linetype = "dashed", color = "red") + 
+  geom_text(aes(x=2400, label="\nIM rating", y=7), colour="blue", text=element_text(size=11)) +
+  ylab("") +
+  xlab("")
+all_stats %>% select(player_id,best.rating,rank)
+# Average time spent between moves
+ggplot(all_stats, aes(x=minutes_between_moves)) + 
+  geom_histogram(alpha = 0.75) +
+  ylab("") +
+  xlab("Minutes between moves")
+all_stats %>% select(player_id,minutes_between_moves,rank)
+```
+
+Creating the Statiscal Summary Table
+```{r}
+summary_tables <- rbind(
+all_stats %>% mutate(Means = mean(best.rating),Medians = median(best.rating),SDs = sd(best.rating)) %>% select(starts_with(c("Means","Medians","SDs"))) %>% distinct(),
+
+all_stats %>% mutate(Means = mean(last.rating),Medians = median(last.rating),SDs = sd(last.rating)) %>% select(starts_with(c("Means","Medians","SDs"))) %>% distinct(),
+
+all_stats %>% mutate(Means = mean(minutes_between_moves),Medians = median(minutes_between_moves),SDs = sd(minutes_between_moves)) %>% select(starts_with(c("Means","Medians","SDs"))) %>% distinct()
+)
+
+rownames(summary_tables) <- c("Best Rating","Last Rating","Minutes Between Moves")
+summary_tables <- cbind(values = rownames(summary_tables), summary_tables)
+rownames(summary_tables) <- 1:nrow(summary_tables)
+
+# This is how I will control the output of the table
+summary_tables %>% dplyr::select(values,Means) %>% filter(values == c("Best Rating","Last Rating"))
+```
+
+
+## Modeling
+```{r}
+set.seed(123)
+
+#Setting up the data split for cross validation
+train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
+test <- dplyr::setdiff(1:nrow(all_stats), train)
+
+all_stats_Train <- all_stats[train,]
+all_stats_Test <- all_stats[test,]
+```
+
+
+```{r}
+#Creating a linear regression to predict Ranking
+fit <- lm(rank ~ last.rating + best.rating + record.win + record.loss + record.draw + minutes_between_moves,all_stats_Train)
+summary(fit)
+
+predict(fit, newdata = all_stats_Train, se.fit = TRUE)
+predict(fit, newdata = all_stats_Train, type = "response", se.fit = TRUE)
+```
+
+
+```{r}
+library(shiny)
+runExample("10_download")
+```
+

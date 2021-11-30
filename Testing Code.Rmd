@@ -70,7 +70,7 @@ all_stats$country <- substr(all_stats$country,nchar(all_stats$country)-1,nchar(a
 
 
 
-all_stats <- left_join(all_stats,country_codes,by = c("country" = "country_code")) %>% mutate(minutes_between_moves = round((record.time_per_move/60)),2)
+all_stats <- left_join(all_stats,country_codes,by = c("country" = "country_code")) %>% mutate(minutes_between_moves = round((record.time_per_move/60),2))
 head(all_stats)
 ```
 
@@ -184,18 +184,29 @@ summary_tables %>% dplyr::select(values,Means) %>% filter(values == c("Best Rati
 
 ## Modeling
 ```{r}
-#Creating a linear regression to predict Ranking
-all_stats
-fit <- lm(rank ~ last.rating + best.rating + record.win + record.loss + record.draw + minutes_between_moves,all_stats)
-summary(fit)
+set.seed(123)
 
+#Setting up the data split for cross validation
+train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
+test <- dplyr::setdiff(1:nrow(all_stats), train)
 
-
-all_stats
-test <- all_stats %>% filter(player_id == 7848044) %>% dplyr::select(last.rating,best.rating,record.win,record.loss,record.draw,minutes_between_moves)
-
-predict(fit,newdata = test)
+all_stats_Train <- all_stats[train,]
+all_stats_Test <- all_stats[test,]
 ```
 
 
+```{r}
+#Creating a linear regression to predict Ranking
+fit <- lm(rank ~ last.rating + best.rating + record.win + record.loss + record.draw + minutes_between_moves,all_stats_Train)
+summary(fit)
+
+predict(fit, newdata = all_stats_Train, se.fit = TRUE)
+predict(fit, newdata = all_stats_Train, type = "response", se.fit = TRUE)
+```
+
+
+```{r}
+library(shiny)
+runExample("10_download")
+```
 
