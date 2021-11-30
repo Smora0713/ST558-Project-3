@@ -205,8 +205,4 @@ predict(fit, newdata = all_stats_Train, type = "response", se.fit = TRUE)
 ```
 
 
-```{r}
-library(shiny)
-runExample("10_download")
-```
 
