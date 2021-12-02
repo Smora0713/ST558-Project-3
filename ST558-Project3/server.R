@@ -18,6 +18,7 @@ library(knitr)
 library(reshape2)
 library(data.table)
 library(DT)
+library(tree)
 
 #Reading in the data that we will need
 #Utilizing the Chess.com API to pull in the top fifty players for each type of chess rules. We will begin with "Daily" (easiet to understand and most data on it) and we will usitlize that as the parameter. This first API will be utilized to pull more API's. It'll be a master table of sorts.
@@ -86,6 +87,17 @@ summary_tables <- rbind(
 rownames(summary_tables) <- c("Best Rating","Last Rating","Minutes Between Moves")
 summary_tables <- cbind(values = rownames(summary_tables), summary_tables)
 rownames(summary_tables) <- 1:nrow(summary_tables)
+
+
+# MODELING
+set.seed(123)
+
+#Setting up the data split for cross validation
+train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
+test <- dplyr::setdiff(1:nrow(all_stats), train)
+
+all_stats_Train <- all_stats[train,]
+all_stats_Test <- all_stats[test,]
 
 #-----------------------------------------------------------------------------------------------------
 
@@ -179,7 +191,41 @@ shinyServer(function(input, output,session) {
                   rownames = FALSE)
       })
 
+    # Split the data into training and test set
+    set.seed(123)
+    
+    #Setting up the data split for cross validation
+    train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
+    test <- dplyr::setdiff(1:nrow(all_stats), train)
+    
+    all_stats_Train <- all_stats[train,]
+    all_stats_Test <- all_stats[test,]
+    
+  output$models <- renderPlot({
+    if(input$model_pick == "Multiple Linear Regression"){
+      # Build the model
 
+      fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
+      
+      tmp <- all_stats_Train %>% dplyr::select(rank,best.rating,last.rating,record.win,record.loss,record.draw,minutes_between_moves) %>%
+        dplyr::mutate(fits=fitted(fit),
+                      resids=resid(fit),
+                      sresids=rstudent(fit))
+      
+       ggplot(data=tmp,mapping=aes(x=fits,y=resids)) +
+        geom_point() +
+        geom_hline(yintercept=0,linetype="dashed")
+
+    }
+    else if(input$model_pick == "Classification Tree"){
+      fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
+      plot(fitTree)
+      text(fitTree)
+    }
+    else if(input$model_pick == "Random Forrest Model"){
+      "model3"
+    }
+  })
     output$downloadData <- downloadHandler(
       filename = function(){paste("Chess_Top_Data", ".csv", sep = "")},
       content = function(file){write.csv(datasetInput(), file)}

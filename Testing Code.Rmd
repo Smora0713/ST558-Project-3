@@ -15,6 +15,9 @@ library(countrycode)
 library(knitr)
 library(reshape2)
 library(data.table)
+library(plotly)
+library(coxed)
+library(caret)
 ```
 
 The purpose of this RMD is to test out code prior to placing it in the shiny ui or server. This will facilitate the debugging process. This code is meant to be read as scrap paper and not as a version one of the shiny app. For that reason this code RMD file does not have to follow the Shiny app layout or structure. It also might not work entirely.
@@ -33,7 +36,7 @@ stats_apis_list <- as.list((paste0(top50$'@id',"/stats")))
 list_of_stats <- lapply(stats_apis_list,fromJSON)
 ```
 
-```{r, message=FALSE, warning = FALSE}
+```{r}
 col.names <- colnames(data.frame(list_of_stats[[1]]$chess_daily)) # list of the column names since the empty dataframe wont have this by default
 
 col.num <- ncol(data.frame(list_of_stats[[1]]$chess_daily)) # number of columns needed for our empty data frame
@@ -51,18 +54,18 @@ all_stats[i,] <- data.frame(list_of_stats[[i]]$chess_daily)
 #all_stats[i,] <- data.frame(list_of_stats[[i]]$fide)
 }
 
-
 colnames(all_stats) <- col.names
 
 all_stats <- cbind(top50[c("player_id","username","rank","country","title","status")],all_stats) # Binding the data based on the position.
+
+all_stats <- all_stats %>% group_by(username) %>% mutate(WLD_score = sum(record.win,(record.draw/2),-record.loss)) %>% ungroup()
 
 country_codes <- read.csv("https://gist.githubusercontent.com/tadast/8827699/raw/f5cac3d42d16b78348610fc4ec301e9234f82821/countries_codes_and_coordinates.csv")
 
 country_codes <- country_codes %>% distinct(Alpha.2.code, .keep_all = TRUE) %>% mutate(country_code = gsub(" ","",Alpha.2.code)) %>% dplyr::select(country_code,Country,Latitude..average.,Longitude..average.)
 
-new_countries <- data.frame(c("XE","XS"),c("Europe","Serbia"),c(54.5260,44.0000),c(15.2551,21.0000))
+new_countries <- data.frame(c("XE","XS","XC"),c("Europe","Serbia","Cueta"),c(54.5260,44.0000,35.8894),c(15.2551,21.0000,5.3213))
 names(new_countries) <- names(country_codes)
-
 country_codes <- rbind(country_codes,new_countries)
 
 
@@ -80,21 +83,20 @@ Now that we have our data we can now start creating graphs and charts to explain
 Now that we have our data pulled and organized we want to start building some EDA's.
 
 ## World Map EDA
-```{r, message=FALSE}
+```{r}
 set.seed(123)
-all_stats <-all_stats %>% mutate(Latitude..average.jit = jitter(all_stats$Latitude..average., amount = 3),Longitude..average.jit = jitter(all_stats$Longitude..average., amount = 3))
+all_stats
+
+all_stats <-all_stats %>% mutate(Latitude..average.jit = jitter(Latitude..average., amount = 3),Longitude..average.jit = jitter(Longitude..average., amount = 3))
 
 world <- map_data("world")
-ggplot() +
-  geom_map(
-    data = world, map = world,
-    aes(long, lat, map_id = region),
-    color = "white", fill = "lightgray", size = 0.1
-  ) +  geom_point(
-    data = all_stats,
-    aes(Longitude..average.jit, Latitude..average.jit),
-    alpha = 0.7,) +
+g <- ggplot() +
+  geom_map(data = world, map = world,aes(long, lat, map_id = region),color = "white", fill = "lightgray", size = 0.1) + 
+  geom_point(data = all_stats,aes(Longitude..average.jit, Latitude..average.jit),alpha = 0.7,) + 
   geom_point(position=position_jitter(width=.1, height=.1))
+
+g
+
 
 
 
@@ -116,7 +118,9 @@ user <- "ACGTU"
 
 all_stats_summary_WLD_user <- all_stats_summary_WLD %>% filter(username == user)
 
-ggplot(all_stats_summary_WLD_user,aes(x = record,y=WLD)) + geom_bar(stat="identity") + ggtitle(paste0("Bar plot for user ",all_stats_summary_WLD_user$username," whose rank is: ",all_stats_summary_WLD_user$rank)) + xlab("") + ylab("")
+g1 <- ggplot(all_stats_summary_WLD_user,aes(x = record,y=WLD)) + geom_bar(stat="identity") + ggtitle(paste0("Bar plot for user ",all_stats_summary_WLD_user$username," whose rank is: ",all_stats_summary_WLD_user$rank)) + xlab("") + ylab("")
+
+ggplotly(g1)
 
 all_stats_summary_WLD_user
 
@@ -135,7 +139,7 @@ This bar plot will be utilized to measure the draw, loss, win records for each p
 
 
 ## Histogram
-```{r, message=FALSE, warning = FALSE}
+```{r}
 # Histogram of the last rating
 ggplot(all_stats, aes(x=last.rating)) + 
   geom_histogram(alpha = 0.75) + geom_vline(xintercept = 2500, linetype = "dashed", color = "red") + 
@@ -172,6 +176,7 @@ all_stats %>% mutate(Means = mean(last.rating),Medians = median(last.rating),SDs
 
 all_stats %>% mutate(Means = mean(minutes_between_moves),Medians = median(minutes_between_moves),SDs = sd(minutes_between_moves)) %>% select(starts_with(c("Means","Medians","SDs"))) %>% distinct()
 )
+summary_tables
 
 rownames(summary_tables) <- c("Best Rating","Last Rating","Minutes Between Moves")
 summary_tables <- cbind(values = rownames(summary_tables), summary_tables)
@@ -182,8 +187,10 @@ summary_tables %>% dplyr::select(values,Means) %>% filter(values == c("Best Rati
 ```
 
 
-## Modeling
+## Splitting the data
+
 ```{r}
+# Split the data into training and test set
 set.seed(123)
 
 #Setting up the data split for cross validation
@@ -194,15 +201,41 @@ all_stats_Train <- all_stats[train,]
 all_stats_Test <- all_stats[test,]
 ```
 
-
+## Modeling
+### Multi Linear Regression
 ```{r}
-#Creating a linear regression to predict Ranking
-fit <- lm(rank ~ last.rating + best.rating + record.win + record.loss + record.draw + minutes_between_moves,all_stats_Train)
-summary(fit)
+# Build the model
+fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
 
-predict(fit, newdata = all_stats_Train, se.fit = TRUE)
-predict(fit, newdata = all_stats_Train, type = "response", se.fit = TRUE)
+tmp <- all_stats_Train %>% dplyr::select(rank,best.rating,last.rating,record.win,record.loss,record.draw,minutes_between_moves) %>%
+  dplyr::mutate(fits=fitted(fit),
+                resids=resid(fit),
+                sresids=rstudent(fit))
+
+g <- ggplot(data=tmp,mapping=aes(x=fits,y=resids)) +
+  geom_point() +
+  geom_hline(yintercept=0,linetype="dashed")
+
+ggplotly(g)
+
+# Make predictions and compute the R2, RMSE and MAE
+predictions <- fit %>% predict(all_stats_Test)
+
+data.frame( R2 = R2(predictions, all_stats_Test$rank),
+            RMSE = RMSE(predictions, all_stats_Test$rank),
+            MAE = MAE(predictions, all_stats_Test$rank))
 ```
 
+### Classification Tree
+```{r}
+library(tree)
+fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
+plot(fitTree)
+text(fitTree)
+```
 
+### Random Forest
+```{r}
+
+```
 

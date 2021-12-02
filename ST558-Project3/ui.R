@@ -190,7 +190,18 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
              dataTableOutput("outputId")
            )
            )),
-  tabPanel("Modeling", "contents"),
+  tabPanel("Modeling", fluid = TRUE,
+           sidebarLayout(
+             sidebarPanel(
+               radioButtons("model_pick","Pick what model to run",c("Multiple Linear Regression","Classification Tree","Random Forrest Model")),
+               h4("Now you get to choose how much of our data will be used for Training the models"),
+               p("Note: Since we are comparing the top 50 players you can only choose between 2 - 98%"),
+               numericInput("percent_for_Train","Percentage for Training",value = 80, min = 2, max = 98, step = 2)
+             ),
+             mainPanel(
+               plotOutput("models")
+             )
+           )),
   tabPanel("Data", fluid = TRUE,
            sidebarLayout(
              sidebarPanel(
