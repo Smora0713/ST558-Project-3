@@ -6,7 +6,6 @@
 #
 #    http://shiny.rstudio.com/
 #
-
 library(shiny)
 library(magrittr)
 library(dplyr)
@@ -88,17 +87,6 @@ rownames(summary_tables) <- c("Best Rating","Last Rating","Minutes Between Moves
 summary_tables <- cbind(values = rownames(summary_tables), summary_tables)
 rownames(summary_tables) <- 1:nrow(summary_tables)
 
-
-# MODELING
-set.seed(123)
-
-#Setting up the data split for cross validation
-train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
-test <- dplyr::setdiff(1:nrow(all_stats), train)
-
-all_stats_Train <- all_stats[train,]
-all_stats_Test <- all_stats[test,]
-
 #-----------------------------------------------------------------------------------------------------
 
 
@@ -106,7 +94,11 @@ all_stats_Test <- all_stats[test,]
 shinyServer(function(input, output,session) {
 
 #Data Exploration
-
+  updateSelectInput(session, "User", 
+                    choices = sort(unique(all_stats_summary_WLD$username)), 
+                    selected = sort(unique(all_stats_summary_WLD$username))[1]
+  )
+  
     output$distPlot <- renderPlot({
       if(input$EDAType == "map"){
         # Create map
@@ -118,8 +110,7 @@ shinyServer(function(input, output,session) {
         all_stats_summary_WLD_user <- all_stats_summary_WLD %>% filter(username == input$User)
         
         ggplot(all_stats_summary_WLD_user,aes(x = record,y=WLD)) + geom_bar(stat="identity") + ggtitle(paste0("Bar plot for user ",all_stats_summary_WLD_user$username," whose rank is: ",all_stats_summary_WLD_user$rank)) + xlab("") + ylab("")
-        
-        
+
       }else if(input$WLD_Rating == "Rating"){
         all_stats_summary_rating_user <- all_stats_summary_rating %>% filter(username == input$User)
         
@@ -174,10 +165,10 @@ shinyServer(function(input, output,session) {
           all_stats %>% select(username,minutes_between_moves,rank)
         }
       }
-    })
+    },rownames = FALSE)
     output$stats <- renderDataTable({
       stats <- summary_tables %>% dplyr::select(values,input$stat) %>% filter(values == c(input$Values))
-    })
+    },rownames = FALSE)
     datasetInput <- reactive(all_stats[,input$Columns])
 
 
@@ -189,22 +180,20 @@ shinyServer(function(input, output,session) {
                     buttons = c("copy", "csv", "pdf")),
                   filter = list(position = 'top'),
                   rownames = FALSE)
-      })
-
-    # Split the data into training and test set
-    set.seed(123)
-    
-    #Setting up the data split for cross validation
-    train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
-    test <- dplyr::setdiff(1:nrow(all_stats), train)
-    
-    all_stats_Train <- all_stats[train,]
-    all_stats_Test <- all_stats[test,]
-    
+      },rownames = FALSE)
   output$models <- renderPlot({
     if(input$model_pick == "Multiple Linear Regression"){
       # Build the model
-
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
       fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
       
       tmp <- all_stats_Train %>% dplyr::select(rank,best.rating,last.rating,record.win,record.loss,record.draw,minutes_between_moves) %>%
@@ -215,17 +204,104 @@ shinyServer(function(input, output,session) {
        ggplot(data=tmp,mapping=aes(x=fits,y=resids)) +
         geom_point() +
         geom_hline(yintercept=0,linetype="dashed")
-
     }
     else if(input$model_pick == "Classification Tree"){
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
       fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
       plot(fitTree)
       text(fitTree)
     }
     else if(input$model_pick == "Random Forrest Model"){
-      "model3"
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
+      rfFit <- train(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train,
+                     method = "rf",
+                     trControl = trainControl(method = "cv",
+                                              number = 5),
+                     tuneGrid = data.frame(mtry = 1:input$tuneGrid))
+      plot(rfFit)
     }
   })
+  
+  output$Model_Accuracy <- renderDataTable({
+    if(input$model_pick == "Multiple Linear Regression"){
+    # Split the data into training and test set
+    set.seed(123)
+    
+    #Setting up the data split for cross validation
+    train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+    test <- dplyr::setdiff(1:nrow(all_stats), train)
+    
+    all_stats_Train <- all_stats[train,]
+    all_stats_Test <- all_stats[test,]
+    
+    fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
+    
+    predictions <- fit %>% predict(all_stats_Test)
+    
+    Model_Accuracy <- data.frame( R2 = R2(predictions, all_stats_Test$rank),
+                RMSE = RMSE(predictions, all_stats_Test$rank),
+                MAE = MAE(predictions, all_stats_Test$rank))
+    }else if(input$model_pick == "Classification Tree"){
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+
+      fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
+
+      predictions <- fitTree %>% predict(all_stats_Test)
+      
+      data.frame( R2 = R2(predictions, all_stats_Test$rank),
+                  RMSE = RMSE(predictions, all_stats_Test$rank),
+                  MAE = MAE(predictions, all_stats_Test$rank))
+    } else if(input$model_pick == "Random Forrest Model"){
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
+      
+      rfFit <- train(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train,
+                     method = "rf",
+                     trControl = trainControl(method = "cv",
+                                              number = 5),
+                     tuneGrid = data.frame(mtry = 1:20))
+      
+      predictions <- rfFit %>% predict(all_stats_Test)
+      
+      data.frame( R2 = R2(predictions, all_stats_Test$rank),
+                  RMSE = RMSE(predictions, all_stats_Test$rank),
+                  MAE = MAE(predictions, all_stats_Test$rank))
+      }
+  },rownames = FALSE)
     output$downloadData <- downloadHandler(
       filename = function(){paste("Chess_Top_Data", ".csv", sep = "")},
       content = function(file){write.csv(datasetInput(), file)}

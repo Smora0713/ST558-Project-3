@@ -140,14 +140,15 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
               h3("By: Sergio Mora"),
               br(),
               h2("Purpose of the app"),
-              p("This app will help us understand who the top 50 chess players from Chess.com are. Chess.com has many ways to play the game of chess but we will focus on just a few:"),
+              p("This app will help us understand who the top 50 chess players from Chess.com are. Chess.com has many ways to play the game of chess but we will focus just on the classical method of playing over a long period of time which here is called **Daily**. If you want to know more about each type of playing method here are some bried descriptions:"),
               br(),
               tags$ul(
                 tags$li(p(strong("Daily:"),"These are games that are played with atleast one day between turns. Meaning a player has hours/days to think of their next move.")),
               tags$li(p(strong("daily960:"),"These are games that are played with atleast one day between turns, however the layout of the board is different. This means that standard opening and lines go out the window.")),
               tags$li(p(strong("live_rapid:"),"A 'Rapid chess' game is one where either all the moves must be completed in a fixed time of more than 10 minutes but less than 60 minutes for each player. Some rapid games also allow for time increment per move played. e.g. a 10 minute game could have an increase of 5 seconds for each move. Meaning if one players plays quickly they could go over 10 minutes alloted to them.")),
               tags$li(p(strong("live_blitz:"),"Blitz games (AKA fast chess) is where each player has less than 10 minutes to play the whole game. Some blitz games allow for time incraments similar to rapid games. This means that players have to focus both on the game and on the clock if they want to win. These sort of games allow for little time to think so often you will see players play well known openings and well known lines in the beginning to save time. However mistakes are still made even by world class players.")),
-              tags$li(p(strong("live_bullet:"),"Bullet games (sometimes called 'blood games') is likely the most aggresive way to play chess. Each player has 1 minute to play the whole game with no time incraments per move. Meaning that the whole came can only last at most 2 minutes. With so little time a lot of mistakes can be made so players depend heavily on strong openings and well studies lines. Bullet games are often described as games where you have to study your opponent prior to the game."))
+              tags$li(p(strong("live_bullet:"),"Bullet games (sometimes called 'blood games') is likely the most aggresive way to play chess. Each player has 1 minute to play the whole game with no time incraments per move. Meaning that the whole came can only last at most 2 minutes. With so little time a lot of mistakes can be made so players depend heavily on strong openings and well studies lines. Bullet games are often described as games where you have to study your opponent prior to the game.")),
+              p("We will only focus on **Daily** primarily because it is often utilized as the benchmark for what constitues a good player. Also because pulling the data from all API's for each iteration is too extensive on the shiny app making it run *really* slow.")
               ),
               br(),
               h2("Data Source"),
@@ -171,7 +172,7 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
                radioButtons("EDAType","EDA Type",choiceValues = c("map", "bar", "hist"),choiceNames = c("Map","Bar Plot","Histogram")),
                conditionalPanel("input.EDAType == 'bar'", 
                                 radioButtons("WLD_Rating","WLD or Rating",c("Win, Loss, Draw","Rating")),
-                                selectInput("User","User",c(all_stats_summary_WLD$username))
+                                selectInput("User","User","")
                                 ),
                conditionalPanel("input.EDAType == 'hist'", 
                                 radioButtons("Rating","Last, Best, or Time",c("Last","Best","Time"))
@@ -195,11 +196,16 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
              sidebarPanel(
                radioButtons("model_pick","Pick what model to run",c("Multiple Linear Regression","Classification Tree","Random Forrest Model")),
                h4("Now you get to choose how much of our data will be used for Training the models"),
-               p("Note: Since we are comparing the top 50 players you can only choose between 2 - 98%"),
-               numericInput("percent_for_Train","Percentage for Training",value = 80, min = 2, max = 98, step = 2)
+               p("Note: Since we are comparing the top 50 players you can only choose between 20 - 90%. Anything more extreme on either side doesn't make sense for us."),
+               sliderInput("percent_for_Train","Percentage for Training",value = 80, min = 20, max = 90, step = 2),
+               conditionalPanel("input.model_pick == 'Random Forrest Model'", 
+                                numericInput("tuneGrid","Tuning Grid",value = 10, min = 2, max = 20, step = 1),
+               )
              ),
              mainPanel(
-               plotOutput("models")
+               plotOutput("models"),
+               h3("Accuracy of our model"),
+               dataTableOutput("Model_Accuracy")
              )
            )),
   tabPanel("Data", fluid = TRUE,

@@ -18,6 +18,7 @@ library(data.table)
 library(plotly)
 library(coxed)
 library(caret)
+library(gbm)
 ```
 
 The purpose of this RMD is to test out code prior to placing it in the shiny ui or server. This will facilitate the debugging process. This code is meant to be read as scrap paper and not as a version one of the shiny app. For that reason this code RMD file does not have to follow the Shiny app layout or structure. It also might not work entirely.
@@ -114,6 +115,9 @@ all_stats_summary_WLD <- all_stats %>% dplyr::select(username,record.win,record.
 
 all_stats_summary_WLD <- gather(all_stats_summary_WLD,key = "record", value = "WLD",record.win,record.loss,record.draw) %>% arrange(username)
 
+
+unique(all_stats_summary_WLD$username)[1]
+
 user <- "ACGTU"
 
 all_stats_summary_WLD_user <- all_stats_summary_WLD %>% filter(username == user)
@@ -194,7 +198,7 @@ summary_tables %>% dplyr::select(values,Means) %>% filter(values == c("Best Rati
 set.seed(123)
 
 #Setting up the data split for cross validation
-train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.8)
+train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.20)
 test <- dplyr::setdiff(1:nrow(all_stats), train)
 
 all_stats_Train <- all_stats[train,]
@@ -232,10 +236,28 @@ library(tree)
 fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
 plot(fitTree)
 text(fitTree)
+
+predictions <- fitTree %>% predict(all_stats_Test)
+
+data.frame( R2 = R2(predictions, all_stats_Test$rank),
+            RMSE = RMSE(predictions, all_stats_Test$rank),
+            MAE = MAE(predictions, all_stats_Test$rank))
 ```
 
 ### Random Forest
 ```{r}
+rfFit <- train(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train,
+               method = "rf",
+               trControl = trainControl(method = "cv",
+                                        number = 5),
+               tuneGrid = data.frame(mtry = 1:20))
 
+plot(rfFit)
+
+predictions <- rfFit %>% predict(all_stats_Test)
+
+data.frame( R2 = R2(predictions, all_stats_Test$rank),
+            RMSE = RMSE(predictions, all_stats_Test$rank),
+            MAE = MAE(predictions, all_stats_Test$rank))
 ```
 
