@@ -19,6 +19,8 @@ library(knitr)
 library(reshape2)
 library(data.table)
 library(DT)
+library(caret)
+
 
 referrence_table <- fromJSON(
   "https://api.chess.com/pub/leaderboards"
@@ -140,7 +142,7 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
               h3("By: Sergio Mora"),
               br(),
               h2("Purpose of the app"),
-              p("This app will help us understand who the top 50 chess players from Chess.com are. Chess.com has many ways to play the game of chess but we will focus just on the classical method of playing over a long period of time which here is called **Daily**. If you want to know more about each type of playing method here are some bried descriptions:"),
+              p("This app will help us understand who the top 50 chess players from Chess.com are. Chess.com has many ways to play the game of chess but we will focus just on the classical method of playing over a long period of time which here is called" ,strong("Daily"), ". If you want to know more about each type of playing method here are some bried descriptions:"),
               br(),
               tags$ul(
                 tags$li(p(strong("Daily:"),"These are games that are played with atleast one day between turns. Meaning a player has hours/days to think of their next move.")),
@@ -148,7 +150,9 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
               tags$li(p(strong("live_rapid:"),"A 'Rapid chess' game is one where either all the moves must be completed in a fixed time of more than 10 minutes but less than 60 minutes for each player. Some rapid games also allow for time increment per move played. e.g. a 10 minute game could have an increase of 5 seconds for each move. Meaning if one players plays quickly they could go over 10 minutes alloted to them.")),
               tags$li(p(strong("live_blitz:"),"Blitz games (AKA fast chess) is where each player has less than 10 minutes to play the whole game. Some blitz games allow for time incraments similar to rapid games. This means that players have to focus both on the game and on the clock if they want to win. These sort of games allow for little time to think so often you will see players play well known openings and well known lines in the beginning to save time. However mistakes are still made even by world class players.")),
               tags$li(p(strong("live_bullet:"),"Bullet games (sometimes called 'blood games') is likely the most aggresive way to play chess. Each player has 1 minute to play the whole game with no time incraments per move. Meaning that the whole came can only last at most 2 minutes. With so little time a lot of mistakes can be made so players depend heavily on strong openings and well studies lines. Bullet games are often described as games where you have to study your opponent prior to the game.")),
-              p("We will only focus on **Daily** primarily because it is often utilized as the benchmark for what constitues a good player. Also because pulling the data from all API's for each iteration is too extensive on the shiny app making it run *really* slow.")
+              br(),
+              br(),
+              p("We will only focus on", strong("Daily"), "primarily because it is often utilized as the benchmark for what constitues a good player. Also because pulling the data from all API's for each iteration is too extensive on the shiny app making it run ", em("really")," slow.")
               ),
               br(),
               h2("Data Source"),

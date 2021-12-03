@@ -18,6 +18,7 @@ library(reshape2)
 library(data.table)
 library(DT)
 library(tree)
+library(caret)
 
 #Reading in the data that we will need
 #Utilizing the Chess.com API to pull in the top fifty players for each type of chess rules. We will begin with "Daily" (easiet to understand and most data on it) and we will usitlize that as the parameter. This first API will be utilized to pull more API's. It'll be a master table of sorts.
