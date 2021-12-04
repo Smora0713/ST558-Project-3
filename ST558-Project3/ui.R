@@ -82,9 +82,6 @@ all_stats_summary_rating <- all_stats %>% dplyr::select(username,last.rating,bes
 
 all_stats_summary_rating <- gather(all_stats_summary_rating,key = "record", value = "Rating",last.rating,best.rating) %>% arrange(username)
 
-all_stats_summary_rating_user <- all_stats_summary_rating %>% filter(username == user)
-
-
 # INSTRUCTIONS:
 
 # An About page. The page should
