@@ -1,4 +1,4 @@
-# ST558-RProj3
+# ST558-Project-3
 Below if the report with all the packages that will be needed.
 
 If you run the code below you will be able to view the shiny app I created to review the top 50 chess players accourding to Chess.com. Data was gathered via an API provided by Chess.com.
