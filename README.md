@@ -21,5 +21,5 @@ install.packages(pkgs)
 #Upload all the packages required
 lapply(pkgs, library, character.only = TRUE)
 
-shiny::runGitHub("ST558-RProj3", "Smora0713", ref = "main", subdir = "/ST558-Project-3/")
+shiny::runGitHub("ST558-Project-3", "Smora0713", ref = "main", subdir = "/ST558-Project3/")
 ```
