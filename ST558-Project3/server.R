@@ -88,6 +88,16 @@ rownames(summary_tables) <- c("Best Rating","Last Rating","Minutes Between Moves
 summary_tables <- cbind(values = rownames(summary_tables), summary_tables)
 rownames(summary_tables) <- 1:nrow(summary_tables)
 
+
+all_stats_summary_WLD <- all_stats %>% dplyr::select(username,record.win,record.loss,record.draw,rank)
+
+all_stats_summary_WLD <- gather(all_stats_summary_WLD,key = "record", value = "WLD",record.win,record.loss,record.draw) %>% arrange(username)
+
+all_stats_summary_rating <- all_stats %>% dplyr::select(username,last.rating,best.rating,rank)
+
+all_stats_summary_rating <- gather(all_stats_summary_rating,key = "record", value = "Rating",last.rating,best.rating) %>% arrange(username)
+
+
 #-----------------------------------------------------------------------------------------------------
 
 
