@@ -196,7 +196,8 @@ summary_tables %>% dplyr::select(values,Means) %>% filter(values == c("Best Rati
 ```{r}
 # Split the data into training and test set
 set.seed(123)
-
+min(all_stats$best.rating)
+median(all_stats$best.rating)
 #Setting up the data split for cross validation
 train <- sample(1:nrow(all_stats), size = nrow(all_stats)*0.20)
 test <- dplyr::setdiff(1:nrow(all_stats), train)
@@ -210,6 +211,15 @@ all_stats_Test <- all_stats[test,]
 ```{r}
 # Build the model
 fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
+
+
+beta1 <- fit$coefficients[1]
+beta2 <- fit$coefficients[2]
+beta3 <- fit$coefficients[3]
+beta4 <- fit$coefficients[4]
+beta5 <- fit$coefficients[5]
+beta6 <- fit$coefficients[6]
+beta7 <- fit$coefficients[7]
 
 tmp <- all_stats_Train %>% dplyr::select(rank,best.rating,last.rating,record.win,record.loss,record.draw,minutes_between_moves) %>%
   dplyr::mutate(fits=fitted(fit),

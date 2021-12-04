@@ -202,14 +202,50 @@ shinyUI(fluidPage(navbarPage(title = "Tabs",
                h4("Now you get to choose how much of our data will be used for Training the models"),
                p("Note: Since we are comparing the top 50 players you can only choose between 20 - 90%. Anything more extreme on either side doesn't make sense for us."),
                sliderInput("percent_for_Train","Percentage for Training",value = 80, min = 20, max = 90, step = 2),
+               checkboxGroupInput("Variables_for_models","Variables for Models",choices = c("best.rating","last.rating","record.win","record.loss","record.draw","minutes_between_moves"),selected= c("best.rating","last.rating","record.win","record.loss","record.draw","minutes_between_moves")),
                conditionalPanel("input.model_pick == 'Random Forrest Model'", 
                                 numericInput("tuneGrid","Tuning Grid",value = 10, min = 2, max = 20, step = 1),
+               ),
+               h3("Prediction Inputs"),
+               conditionalPanel("input.Variables_for_models.includes('best.rating')",
+                                sliderInput("best.rating.Slide","Best Rating",min = min(all_stats$best.rating),max = max(all_stats$best.rating),value = median(all_stats$best.rating)
+                                )
+                ),
+               conditionalPanel("input.Variables_for_models.includes('last.rating')",
+                                sliderInput("last.rating.Slide","Last Rating",min = min(all_stats$last.rating),max = max(all_stats$last.rating),value = median(all_stats$last.rating)
+                                )
+               ),
+               conditionalPanel("input.Variables_for_models.includes('record.win')",
+                                sliderInput("record.win.Slide","Record Win",min = min(all_stats$record.win),max = max(all_stats$record.win),value = median(all_stats$record.win)
+                                )
+               ),
+               conditionalPanel("input.Variables_for_models.includes('record.loss')",
+                                sliderInput("record.loss.Slide","Record Loss",min = min(all_stats$record.loss),max = max(all_stats$record.loss),value = median(all_stats$record.loss)
+                                )
+               ),
+               conditionalPanel("input.Variables_for_models.includes('record.draw')",
+                                sliderInput("record.draw.Slide","Record Draws",min = min(all_stats$record.draw),max = max(all_stats$record.draw),value = median(all_stats$record.draw)
+                                )
+               ),
+               conditionalPanel("input.Variables_for_models.includes('minutes_between_moves')",
+                                sliderInput("minutes_between_moves.Slide","Minutes between moves",min = min(all_stats$minutes_between_moves),max = max(all_stats$minutes_between_moves),value = median(all_stats$minutes_between_moves)
+                                )
                )
              ),
              mainPanel(
+               h3("Model:"),
+               uiOutput("model_description"),
                plotOutput("models"),
-               h3("Accuracy of our model"),
-               dataTableOutput("Model_Accuracy")
+               h3("Accuracy of our model:"),
+               dataTableOutput("Model_Accuracy"),
+               h3("Predicted Rank:"),
+               conditionalPanel("input.model_pick == 'Multiple Linear Regression'",
+                                p("Since the linear model does not stop when rank equal 1 or 50 we have chosen place this logic AFTER the predict function. This shows that a linear model might not be the best model option for us.")),
+               conditionalPanel("input.model_pick == 'Classification Tree'",
+                                p("Out Tree model doesn't have the issues that we faced in the linear model but it is a very conservative model. Thus even if we max out our players stats the model is unlikely to give us the top rank.")),
+               conditionalPanel("input.model_pick == 'Random Forrest Model'",
+                                p("Our Random Forrest Model behaves similar to our tree fit. The fact that the model is overly conservative might tell us that the model has overfit to our data. This could be due to the variables we are using or to the Training/Test split, or both.")),
+               textOutput("prediction")
              )
            )),
   tabPanel("Data", fluid = TRUE,

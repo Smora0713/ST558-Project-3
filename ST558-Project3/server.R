@@ -195,8 +195,9 @@ shinyServer(function(input, output,session) {
       all_stats_Train <- all_stats[train,]
       all_stats_Test <- all_stats[test,]
       
-      fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
-      
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+      fit <- lm(fit_formula,all_stats_Train)
+
       tmp <- all_stats_Train %>% dplyr::select(rank,best.rating,last.rating,record.win,record.loss,record.draw,minutes_between_moves) %>%
         dplyr::mutate(fits=fitted(fit),
                       resids=resid(fit),
@@ -217,7 +218,9 @@ shinyServer(function(input, output,session) {
       all_stats_Train <- all_stats[train,]
       all_stats_Test <- all_stats[test,]
       
-      fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+      fitTree <- tree(fit_formula,all_stats_Train)
+      
       plot(fitTree)
       text(fitTree)
     }
@@ -231,12 +234,15 @@ shinyServer(function(input, output,session) {
       
       all_stats_Train <- all_stats[train,]
       all_stats_Test <- all_stats[test,]
-      
-      rfFit <- train(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train,
+
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+
+      rfFit <- train(fit_formula, data = all_stats_Train,
                      method = "rf",
                      trControl = trainControl(method = "cv",
                                               number = 5),
                      tuneGrid = data.frame(mtry = 1:input$tuneGrid))
+
       plot(rfFit)
     }
   })
@@ -253,7 +259,8 @@ shinyServer(function(input, output,session) {
     all_stats_Train <- all_stats[train,]
     all_stats_Test <- all_stats[test,]
     
-    fit <- lm(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves,all_stats_Train)
+    fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+    fit <- lm(fit_formula,all_stats_Train)
     
     predictions <- fit %>% predict(all_stats_Test)
     
@@ -271,7 +278,8 @@ shinyServer(function(input, output,session) {
       all_stats_Train <- all_stats[train,]
       all_stats_Test <- all_stats[test,]
 
-      fitTree <- tree(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train)
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+      fitTree <- tree(fit_formula,all_stats_Train)
 
       predictions <- fitTree %>% predict(all_stats_Test)
       
@@ -289,13 +297,14 @@ shinyServer(function(input, output,session) {
       all_stats_Train <- all_stats[train,]
       all_stats_Test <- all_stats[test,]
       
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
       
-      rfFit <- train(rank ~ best.rating + last.rating + record.win + record.loss + record.draw  + minutes_between_moves, data = all_stats_Train,
+      rfFit <- train(fit_formula, data = all_stats_Train,
                      method = "rf",
                      trControl = trainControl(method = "cv",
                                               number = 5),
-                     tuneGrid = data.frame(mtry = 1:20))
-      
+                     tuneGrid = data.frame(mtry = 1:input$tuneGrid))
+
       predictions <- rfFit %>% predict(all_stats_Test)
       
       data.frame( R2 = R2(predictions, all_stats_Test$rank),
@@ -303,6 +312,110 @@ shinyServer(function(input, output,session) {
                   MAE = MAE(predictions, all_stats_Test$rank))
       }
   },rownames = FALSE)
+  output$model_description <- renderUI({
+    if(input$model_pick == "Multiple Linear Regression"){
+      withMathJax(
+        helpText("The following Multiple Linear Regression helps us understand the relationship between our independent variables (e.g. best rating, record wins, etc.) to our dependent variable (Rank). Ultimately we do this to be able to predict where a new player would rank given the variables that we have at hand. The following model can be read as such:
+                 
+                 $$Y = \\beta_0 + \\beta_1 Best.Rating + \\beta_2 Last.Rating + \\beta_3 Record.Win + \\beta_4 Record.Loss + \\beta_5 Record.Draw + \\beta_6 Minutes \\space Between \\space moves$$
+                 
+                 From the model above we are able to see which variable we should really focus on when making out predictions.")
+      )
+    }else if(input$model_pick == "Classification Tree"){
+      withMathJax(
+        helpText("This regression/classification tree model allows for us to split our data based on the key variables that the decisiion tree algorithm deems to be the best split. Ultimately this is one of the foundametanls that we can utilize for our a Random Forest Model by being able to manipulate the number of nodes in our tree. In our case we will focus on a regression tree since we are predicting a continous response. Meaning that we split our prediction into specific regions, we can usually use the mean of observations as predictions.Compared to a SLR we see that a tree will seperate our data prior to making these predictions. By splitting the data into regions we have more flexibility in our prediction but we should also expect more variance.")
+      )
+    }else if(input$model_pick == "Random Forrest Model"){
+      withMathJax(
+        helpText("Random Forest, boosting, and bagging are three methods that average across trees. Lose interpetability but gain in prediction! This is proving to be true for our Random Forest model specifically. A Random Forest can be compared to bagging but instead of using all of our predictors in our trees we will use a random subset of predictors. This way we use different individual tree based models aggregated over large numbers. The reason we would not want to always utilize all of our predictors:"),
+                 tags$li("If a really strong predictor exists, tree will probably use it for the first split"),
+                 tags$li("Makes bagged trees predictions more correlated"),
+                 tags$li("By randomly selecting the predictors one or two predictors will not dominate our entire model")
+      )
+    }
+  })
+  # Predictions
+  output$prediction <- renderText({
+    new_data <- data.frame(best.rating = input$best.rating.Slide, 
+                           last.rating = input$last.rating.Slide,
+                           record.win = input$record.win.Slide, 
+                           record.loss = input$record.loss.Slide, 
+                           record.draw = input$record.draw.Slide, 
+                           minutes_between_moves = input$minutes_between_moves.Slide)
+    if(input$model_pick == "Multiple Linear Regression"){
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+      fit <- lm(fit_formula,all_stats_Train)
+      
+      rank <- predict(fit, newdata = new_data)
+    paste0("The predicted rank given the inputs is: ", if(rank <= 1){
+      return(1)
+      }else if(rank > 1 & rank <= 50){
+        return(round(rank))}
+      else if(rank > 50){
+        return(50)})}
+    else if(input$model_pick == "Classification Tree"){
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+      fitTree <- tree(fit_formula,all_stats_Train)
+      
+      rank <- predict(fitTree, newdata = new_data)
+      
+      paste0("The predicted rank given the inputs is: ", if(rank <= 1){
+        return(1)
+      }else if(rank > 1 & rank <= 50){
+        return(round(rank))}
+      else if(rank > 50){
+        return(50)})
+    }    else if(input$model_pick == "Random Forrest Model"){
+      # Split the data into training and test set
+      set.seed(123)
+      
+      #Setting up the data split for cross validation
+      train <- sample(1:nrow(all_stats), size = nrow(all_stats)*(input$percent_for_Train/100))
+      test <- dplyr::setdiff(1:nrow(all_stats), train)
+      
+      all_stats_Train <- all_stats[train,]
+      all_stats_Test <- all_stats[test,]
+      
+      fit_formula <- paste("rank", "~", paste(input$Variables_for_models, collapse = "+")) %>% as.formula()
+      
+      rfFit <- train(fit_formula, data = all_stats_Train,
+                     method = "rf",
+                     trControl = trainControl(method = "cv",
+                                              number = 5),
+                     tuneGrid = data.frame(mtry = 1:input$tuneGrid))
+      
+      rank <- predict(rfFit, newdata = new_data)
+      
+      paste0("The predicted rank given the inputs is: ", if(rank <= 1){
+        return(1)
+      }else if(rank > 1 & rank <= 50){
+        return(round(rank))}
+      else if(rank > 50){
+        return(50)})
+    }
+    
+  })
+  
     output$downloadData <- downloadHandler(
       filename = function(){paste("Chess_Top_Data", ".csv", sep = "")},
       content = function(file){write.csv(datasetInput(), file)}
